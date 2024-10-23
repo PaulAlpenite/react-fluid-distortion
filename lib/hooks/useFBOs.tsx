@@ -41,12 +41,36 @@ export const useFBOs = () => {
         depth: false,
     });
 
+    const bloom = useDoubleFBO(OPTS.dyeRes, OPTS.dyeRes, {
+        type: THREE.HalfFloatType,
+        format: THREE.RGBAFormat,
+        minFilter: THREE.LinearFilter,
+        depth: false,
+      });
+      
+      const sunrays = useDoubleFBO(OPTS.dyeRes, OPTS.dyeRes, {
+        type: THREE.HalfFloatType,
+        format: THREE.RGBAFormat,
+        minFilter: THREE.LinearFilter,
+        depth: false,
+      });
+      
+      const sunraysTemp = useFBO(OPTS.dyeRes, OPTS.dyeRes, {
+        type: THREE.HalfFloatType,
+        format: THREE.RGBAFormat,
+        minFilter: THREE.LinearFilter,
+        depth: false,
+      });
+
     const FBOs = useMemo(() => {
         return {
             density,
             velocity,
             pressure,
             divergence,
+            bloom,
+            sunrays,
+            sunraysTemp,
             curl,
         };
     }, [curl, density, divergence, pressure, velocity]);

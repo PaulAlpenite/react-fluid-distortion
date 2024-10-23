@@ -19,18 +19,17 @@ export const usePointer = ({ force }: { force: number }) => {
 
     const onPointerMove = useCallback(
         (event: ThreeEvent<PointerEvent>) => {
-            const deltaX = event.x - lastMouse.current.x;
-            const deltaY = event.y - lastMouse.current.y;
-
             if (!hasMoved.current) {
                 hasMoved.current = true;
                 lastMouse.current.set(event.x, event.y);
+                return; // Return early on the first move
             }
-
+    
+            const deltaX = event.x - lastMouse.current.x;
+            const deltaY = event.y - lastMouse.current.y;
+    
             lastMouse.current.set(event.x, event.y);
-
-            if (!hasMoved.current) return;
-
+    
             splatStack.push({
                 mouseX: event.x / size.width,
                 mouseY: 1.0 - event.y / size.height,
@@ -40,6 +39,7 @@ export const usePointer = ({ force }: { force: number }) => {
         },
         [force, size.height, size.width, splatStack],
     );
+    
 
     return { onPointerMove, splatStack };
 };

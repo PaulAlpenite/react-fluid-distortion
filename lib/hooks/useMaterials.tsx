@@ -4,6 +4,7 @@ import { useThree } from '@react-three/fiber';
 import { OPTS } from '../constant';
 
 import baseVertex from '../glsl/base.vert';
+import displayFrag from '../glsl/displayFrag.glsl'
 import clearFrag from '../glsl/clear.frag';
 import curlFrag from '../glsl/curl.frag';
 import divergenceFrag from '../glsl/divergence.frag';
@@ -12,6 +13,11 @@ import pressureFrag from '../glsl/pressure.frag';
 import splatFrag from '../glsl/splat.frag';
 import advectionFrag from '../glsl/advection.frag';
 import vorticityFrag from '../glsl/vorticity.frag';
+import bloomPrefilterFrag from '../glsl/bloomPrefilter.frag';
+import bloomBlurFrag from '../glsl/bloomBlur.frag';
+import bloomFinalFrag from '../glsl/bloomFinal.frag';
+import sunraysMaskFrag from '../glsl/sunraysMask.frag';
+import sunraysFrag from '../glsl/sunrays.frag';
 
 export const useMaterials = (): { [key: string]: ShaderMaterial } => {
     const size = useThree((s) => s.size);
@@ -74,6 +80,65 @@ export const useMaterials = (): { [key: string]: ShaderMaterial } => {
             },
             fragmentShader: divergenceFrag,
         });
+
+        const display = new ShaderMaterial({
+            uniforms: {
+              uTexture: { value: new Texture() },
+              uBloomTexture: { value: new Texture() },
+              uSunraysTexture: { value: new Texture() },
+              bloomIntensity: { value: 1.0 },    // Adjust as needed
+              sunraysIntensity: { value: 1.0 },  // Adjust as needed
+            },
+            fragmentShader: displayFrag,
+          });
+          
+
+          const bloomFinal = new ShaderMaterial({
+            uniforms: {
+              uBaseTexture: { value: null },
+              uBloomTexture: { value: null },
+              intensity: { value: 1.0 }, // Adjust as needed
+            },
+            fragmentShader: bloomFinalFrag,
+          });
+
+
+        // Inside your useMemo in useMaterials
+        const bloomPrefilter = new ShaderMaterial({
+            uniforms: {
+            uTexture: { value: null },
+            threshold: { value: 0.6 }, // Adjust as needed
+            },
+            fragmentShader: bloomPrefilterFrag,
+        });
+        
+        const bloomBlur = new ShaderMaterial({
+            uniforms: {
+            uTexture: { value: null },
+            texelSize: { value: new Vector2() },
+            },
+            fragmentShader: bloomBlurFrag,
+        });
+        
+        const sunraysMask = new ShaderMaterial({
+            uniforms: {
+            uTexture: { value: null },
+            },
+            fragmentShader: sunraysMaskFrag,
+        });
+        
+        const sunrays = new ShaderMaterial({
+            uniforms: {
+              uTexture: { value: null },
+              sunPosition: { value: new Vector2(0.5, 0.5) }, // Adjust as needed
+              weight: { value: 1.0 },
+              decay: { value: 0.95 },
+              exposure: { value: 0.3 },
+            },
+            fragmentShader: sunraysFrag,
+          });
+          
+          
 
         const gradientSubstract = new ShaderMaterial({
             uniforms: {
@@ -152,7 +217,13 @@ export const useMaterials = (): { [key: string]: ShaderMaterial } => {
 
         return {
             splat,
+            display,
             curl,
+            bloomPrefilter,
+            bloomBlur,
+            sunraysMask,
+            sunrays,
+            bloomFinal,
             clear,
             divergence,
             pressure,
@@ -163,21 +234,44 @@ export const useMaterials = (): { [key: string]: ShaderMaterial } => {
     }, [size]);
 
     useEffect(() => {
-        for (const material of Object.values(shaderMaterials)) {
-            const aspectRatio = size.width / (size.height + 400);
-
-            material.uniforms.texelSize.value.set(1 / (OPTS.simRes * aspectRatio), 1 / OPTS.simRes);
-            material.vertexShader = baseVertex;
-            material.depthTest = false;
-            material.depthWrite = false;
-        }
-
-        return () => {
-            for (const material of Object.values(shaderMaterials)) {
-                material.dispose();
+        const aspectRatio = size.width / size.height;
+      
+        for (const [key, material] of Object.entries(shaderMaterials)) {
+          // Set texelSize for materials that have it
+          if (material.uniforms.texelSize) {
+            if (key === 'bloomBlur') {
+              // For bloomBlur, use full resolution
+              material.uniforms.texelSize.value.set(
+                1 / size.width,
+                1 / size.height
+              );
+            } else {
+              // For other materials, use simulation resolution
+              material.uniforms.texelSize.value.set(
+                1 / (OPTS.simRes * aspectRatio),
+                1 / OPTS.simRes
+              );
             }
+          }
+      
+          // Set aspectRatio for materials that have it
+          if (material.uniforms.aspectRatio) {
+            material.uniforms.aspectRatio.value = aspectRatio;
+          }
+      
+          material.vertexShader = baseVertex;
+          material.depthTest = false;
+          material.depthWrite = false;
+        }
+      
+        return () => {
+          for (const material of Object.values(shaderMaterials)) {
+            material.dispose();
+          }
         };
-    }, [shaderMaterials, size]);
+      }, [shaderMaterials, size]);
+      
+    
 
     return shaderMaterials;
 };
